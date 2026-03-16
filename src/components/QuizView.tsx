@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { POKEMON_151, getPokemonImageUrl } from '@/lib/pokemon-data';
 import { getAiHint } from '@/ai/flows/ai-hint-tool-flow';
 import { getLocalHint } from '@/lib/local-pokedex';
@@ -26,6 +26,7 @@ export function QuizView({ type }: QuizViewProps) {
   const [currentIdx, setCurrentIdx] = useState<number>(-1);
   const [usedIndices, setUsedIndices] = useState<number[]>([]);
   const [userInput, setUserInput] = useState('');
+  const [suggestions, setSuggestions] = useState<string[]>([]);
   const [lastWrongInput, setLastWrongInput] = useState('');
   const [isCorrect, setIsCorrect] = useState<boolean | null>(null);
   const [score, setScore] = useState({ correct: 0, total: 0 });
@@ -35,6 +36,8 @@ export function QuizView({ type }: QuizViewProps) {
   const [attempts, setAttempts] = useState(0);
   const [difficulty, setDifficulty] = useState<Difficulty>('medium');
   const [showAnswer, setShowAnswer] = useState(false);
+  
+  const containerRef = useRef<HTMLDivElement>(null);
 
   const handleHint = useCallback(async (idx: number, currentLang: Language) => {
     if (idx === -1) return;
@@ -71,12 +74,10 @@ export function QuizView({ type }: QuizViewProps) {
   }, []);
 
   const generateNext = useCallback(() => {
-    // Pick an index that hasn't been used in this session
     let nextIdx: number;
     const availableIndices = Array.from({ length: 151 }, (_, i) => i).filter(i => !usedIndices.includes(i));
     
     if (availableIndices.length === 0) {
-      // If for some reason we ran out, reset (shouldn't happen in 10 turns)
       nextIdx = Math.floor(Math.random() * 151);
       setUsedIndices([nextIdx]);
     } else {
@@ -87,6 +88,7 @@ export function QuizView({ type }: QuizViewProps) {
 
     setCurrentIdx(nextIdx);
     setUserInput('');
+    setSuggestions([]);
     setLastWrongInput('');
     setIsCorrect(null);
     setHint(null);
@@ -94,7 +96,6 @@ export function QuizView({ type }: QuizViewProps) {
     setShowAnswer(false);
   }, [usedIndices]);
 
-  // Initialize first question
   useEffect(() => {
     if (currentIdx === -1) {
       generateNext();
@@ -106,6 +107,34 @@ export function QuizView({ type }: QuizViewProps) {
       handleHint(currentIdx, lang);
     }
   }, [difficulty, currentIdx, lang, hint, quizFinished, handleHint]);
+
+  // Handle Suggestions
+  useEffect(() => {
+    if (type === 'name' && userInput.length >= 2 && !isCorrect && !showAnswer) {
+      const query = userInput.toLowerCase();
+      const matches = POKEMON_151
+        .map(p => p.name[lang])
+        .filter(name => 
+          name.toLowerCase().includes(query) && 
+          name.toLowerCase() !== query
+        )
+        .slice(0, 5);
+      setSuggestions(matches);
+    } else {
+      setSuggestions([]);
+    }
+  }, [userInput, lang, type, isCorrect, showAnswer]);
+
+  // Close suggestions when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setSuggestions([]);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -122,9 +151,9 @@ export function QuizView({ type }: QuizViewProps) {
       const normalizedOfficial = pokemon.name[lang].toLowerCase().replace(/[♀♂]/g, '').trim();
       
       if (pokemon.id === 29) { // Nidoran F
-        correct = answer === normalizedOfficial || answer === "nidoran f" || answer === "nidoran femelle" || answer === "nidoran female";
+        correct = answer === normalizedOfficial || answer === "nidoran f" || answer === "nidoran femelle" || answer === "nidoran female" || answer === "nidoran♀";
       } else if (pokemon.id === 32) { // Nidoran M
-        correct = answer === normalizedOfficial || answer === "nidoran m" || answer === "nidoran male";
+        correct = answer === normalizedOfficial || answer === "nidoran m" || answer === "nidoran male" || answer === "nidoran♂";
       } else {
         correct = answer === pokemon.name[lang].toLowerCase();
       }
@@ -133,6 +162,7 @@ export function QuizView({ type }: QuizViewProps) {
     if (correct) {
       setIsCorrect(true);
       setScore(prev => ({ ...prev, correct: prev.correct + 1, total: prev.total + 1 }));
+      setSuggestions([]);
     } else {
       setLastWrongInput(userInput.trim());
       setIsCorrect(false);
@@ -158,7 +188,7 @@ export function QuizView({ type }: QuizViewProps) {
     setScore({ correct: 0, total: 0 });
     setUsedIndices([]);
     setQuizFinished(false);
-    setCurrentIdx(-1); // Force re-init
+    setCurrentIdx(-1);
   };
 
   if (currentIdx === -1) return null;
@@ -200,7 +230,7 @@ export function QuizView({ type }: QuizViewProps) {
   const currentPokemon = POKEMON_151[currentIdx];
 
   return (
-    <div className="max-w-xl mx-auto space-y-6">
+    <div className="max-w-xl mx-auto space-y-6" ref={containerRef}>
       <div className="space-y-4">
         <div className="flex justify-between items-center gap-4">
           <div className="flex-1 space-y-2">
@@ -259,7 +289,7 @@ export function QuizView({ type }: QuizViewProps) {
             {(type === 'number' || difficulty === 'easy' || isCorrect === true || showAnswer) ? (
               <div className="relative w-full h-full flex items-center justify-center">
                 <Image 
-                  src={getPokemonImageUrl(currentPokemonNumber, true)}
+                  src={getPokemonImageUrl(currentPokemonNumber, isCorrect === true || showAnswer)}
                   alt="Pokemon Challenge"
                   width={160}
                   height={160}
@@ -284,20 +314,42 @@ export function QuizView({ type }: QuizViewProps) {
           </div>
 
           <form onSubmit={handleSubmit} className="w-full space-y-4">
-            <div className="flex gap-2">
-              <Input
-                type={type === 'number' ? 'number' : 'text'}
-                placeholder={type === 'number' 
-                  ? (lang === 'fr' ? 'Ex: 25' : 'Ex: 25') 
-                  : (lang === 'fr' ? 'Nom du Pokémon' : 'Pokémon Name')}
-                value={userInput}
-                onChange={(e) => setUserInput(e.target.value)}
-                disabled={isCorrect === true || showAnswer}
-                className="text-lg h-12 text-center"
-                autoFocus
-              />
+            <div className="flex gap-2 relative">
+              <div className="flex-1 relative">
+                <Input
+                  type={type === 'number' ? 'number' : 'text'}
+                  placeholder={type === 'number' 
+                    ? (lang === 'fr' ? 'Ex: 25' : 'Ex: 25') 
+                    : (lang === 'fr' ? 'Nom du Pokémon' : 'Pokémon Name')}
+                  value={userInput}
+                  onChange={(e) => setUserInput(e.target.value)}
+                  disabled={isCorrect === true || showAnswer}
+                  className="text-lg h-12 text-center"
+                  autoFocus
+                />
+                
+                {/* Autocomplete suggestions */}
+                {suggestions.length > 0 && (
+                  <div className="absolute top-full left-0 right-0 z-50 mt-1 bg-white border border-border rounded-lg shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-100">
+                    {suggestions.map((s) => (
+                      <button
+                        key={s}
+                        type="button"
+                        className="w-full text-left px-4 py-3 hover:bg-primary/10 transition-colors text-sm font-medium border-b last:border-0"
+                        onClick={() => {
+                          setUserInput(s);
+                          setSuggestions([]);
+                        }}
+                      >
+                        {s}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
               {!isCorrect && !showAnswer && (
-                <Button type="submit" size="lg" className="px-6 font-bold">
+                <Button type="submit" size="lg" className="px-6 font-bold h-12">
                   OK
                 </Button>
               )}
