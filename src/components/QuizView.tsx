@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { POKEMON_151, getPokemonImageUrl } from '@/lib/pokemon-data';
 import { getAiHint } from '@/ai/flows/ai-hint-tool-flow';
+import { getLocalHint } from '@/lib/local-pokedex';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -34,14 +35,34 @@ export function QuizView({ type }: QuizViewProps) {
 
   const handleHint = useCallback(async (idx: number, currentLang: Language) => {
     if (idx === -1) return;
+
+    const pokemonId = idx + 1;
+    
+    // 1. Vérifier d'abord la base de données locale statique
+    const localHint = getLocalHint(pokemonId, currentLang);
+    if (localHint) {
+      setHint(localHint);
+      return;
+    }
+
+    // 2. Vérifier le cache localStorage du navigateur
+    const cacheKey = `pokedex-cache-${pokemonId}-${currentLang}`;
+    const cachedHint = localStorage.getItem(cacheKey);
+    if (cachedHint) {
+      setHint(cachedHint);
+      return;
+    }
+
+    // 3. Sinon, appeler l'IA et mettre en cache le résultat
     setIsHintLoading(true);
     try {
       const response = await getAiHint({
         pokemonName: POKEMON_151[idx].name[currentLang],
-        pokemonNumber: idx + 1,
+        pokemonNumber: pokemonId,
         language: currentLang
       });
       setHint(response.hint);
+      localStorage.setItem(cacheKey, response.hint);
     } catch (error) {
       setHint(currentLang === 'fr' ? "Le Professeur Chen est occupé..." : "Professor Oak is busy right now...");
     } finally {
@@ -62,7 +83,7 @@ export function QuizView({ type }: QuizViewProps) {
     generateNext();
   }, [generateNext]);
 
-  // Auto-fetch hint for Medium difficulty
+  // Récupération auto de l'indice pour le mode Moyen
   useEffect(() => {
     if (difficulty === 'medium' && currentIdx !== -1 && !hint && !quizFinished) {
       handleHint(currentIdx, lang);
