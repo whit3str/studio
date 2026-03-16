@@ -24,7 +24,9 @@ interface QuizViewProps {
 export function QuizView({ type }: QuizViewProps) {
   const { lang } = useLanguage();
   const [currentIdx, setCurrentIdx] = useState<number>(-1);
+  const [usedIndices, setUsedIndices] = useState<number[]>([]);
   const [userInput, setUserInput] = useState('');
+  const [lastWrongInput, setLastWrongInput] = useState('');
   const [isCorrect, setIsCorrect] = useState<boolean | null>(null);
   const [score, setScore] = useState({ correct: 0, total: 0 });
   const [hint, setHint] = useState<string | null>(null);
@@ -39,14 +41,12 @@ export function QuizView({ type }: QuizViewProps) {
 
     const pokemonId = idx + 1;
     
-    // 1. Vérifier d'abord la base de données locale statique
     const localHint = getLocalHint(pokemonId, currentLang);
     if (localHint) {
       setHint(localHint);
       return;
     }
 
-    // 2. Vérifier le cache localStorage du navigateur
     const cacheKey = `pokedex-cache-${pokemonId}-${currentLang}`;
     const cachedHint = localStorage.getItem(cacheKey);
     if (cachedHint) {
@@ -54,7 +54,6 @@ export function QuizView({ type }: QuizViewProps) {
       return;
     }
 
-    // 3. Sinon, appeler l'IA et mettre en cache le résultat
     setIsHintLoading(true);
     try {
       const response = await getAiHint({
@@ -72,20 +71,36 @@ export function QuizView({ type }: QuizViewProps) {
   }, []);
 
   const generateNext = useCallback(() => {
-    const nextIdx = Math.floor(Math.random() * 151);
+    // Pick an index that hasn't been used in this session
+    let nextIdx: number;
+    const availableIndices = Array.from({ length: 151 }, (_, i) => i).filter(i => !usedIndices.includes(i));
+    
+    if (availableIndices.length === 0) {
+      // If for some reason we ran out, reset (shouldn't happen in 10 turns)
+      nextIdx = Math.floor(Math.random() * 151);
+      setUsedIndices([nextIdx]);
+    } else {
+      const randomIdx = Math.floor(Math.random() * availableIndices.length);
+      nextIdx = availableIndices[randomIdx];
+      setUsedIndices(prev => [...prev, nextIdx]);
+    }
+
     setCurrentIdx(nextIdx);
     setUserInput('');
+    setLastWrongInput('');
     setIsCorrect(null);
     setHint(null);
     setAttempts(0);
     setShowAnswer(false);
-  }, []);
+  }, [usedIndices]);
 
+  // Initialize first question
   useEffect(() => {
-    generateNext();
-  }, [generateNext]);
+    if (currentIdx === -1) {
+      generateNext();
+    }
+  }, [currentIdx, generateNext]);
 
-  // Récupération auto de l'indice pour le mode Moyen
   useEffect(() => {
     if (difficulty === 'medium' && currentIdx !== -1 && !hint && !quizFinished) {
       handleHint(currentIdx, lang);
@@ -94,7 +109,7 @@ export function QuizView({ type }: QuizViewProps) {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (isCorrect === true || quizFinished || showAnswer) return;
+    if (isCorrect === true || quizFinished || showAnswer || !userInput.trim()) return;
 
     const answer = userInput.trim().toLowerCase();
     const pokemon = POKEMON_151[currentIdx];
@@ -106,7 +121,6 @@ export function QuizView({ type }: QuizViewProps) {
     } else {
       const normalizedOfficial = pokemon.name[lang].toLowerCase().replace(/[♀♂]/g, '').trim();
       
-      // Gestion spéciale pour les Nidoran pour faciliter la saisie sans symboles
       if (pokemon.id === 29) { // Nidoran F
         correct = answer === normalizedOfficial || answer === "nidoran f" || answer === "nidoran femelle" || answer === "nidoran female";
       } else if (pokemon.id === 32) { // Nidoran M
@@ -120,6 +134,7 @@ export function QuizView({ type }: QuizViewProps) {
       setIsCorrect(true);
       setScore(prev => ({ ...prev, correct: prev.correct + 1, total: prev.total + 1 }));
     } else {
+      setLastWrongInput(userInput.trim());
       setIsCorrect(false);
       setAttempts(prev => prev + 1);
     }
@@ -141,14 +156,15 @@ export function QuizView({ type }: QuizViewProps) {
 
   const resetQuiz = () => {
     setScore({ correct: 0, total: 0 });
+    setUsedIndices([]);
     setQuizFinished(false);
-    generateNext();
+    setCurrentIdx(-1); // Force re-init
   };
 
   if (currentIdx === -1) return null;
 
   if (quizFinished) {
-    const percentage = Math.round((score.correct / (score.total)) * 100);
+    const percentage = Math.round((score.correct / 10) * 100);
     return (
       <Card className="max-w-xl mx-auto overflow-hidden shadow-2xl">
         <CardHeader className="text-center bg-primary text-primary-foreground py-10">
@@ -227,11 +243,11 @@ export function QuizView({ type }: QuizViewProps) {
               : (lang === 'fr' ? "Quel est ce Pokémon ?" : "Who's this Pokémon?")}
           </CardTitle>
           <div className="flex flex-col items-center">
-             <span className="text-3xl font-mono font-bold text-primary/80 tracking-tighter">
+             <span className="text-4xl md:text-5xl font-mono font-black text-primary/80 tracking-tighter py-2">
                 #{currentPokemonNumber.toString().padStart(3, '0')}
              </span>
              {type === 'name' && (
-               <CardDescription className="text-xs uppercase tracking-widest mt-1">
+               <CardDescription className="text-xs uppercase tracking-widest">
                  {lang === 'fr' ? "Identification Kanto" : "Kanto Identification"}
                </CardDescription>
              )}
@@ -248,7 +264,7 @@ export function QuizView({ type }: QuizViewProps) {
                   width={160}
                   height={160}
                   className={cn(
-                    "drop-shadow-xl transition-all duration-500",
+                    "drop-shadow-xl transition-all duration-500 pixel-art",
                     (difficulty === 'easy' && isCorrect !== true && !showAnswer && type === 'name') ? "brightness-0" : "brightness-100"
                   )}
                   priority
@@ -311,8 +327,13 @@ export function QuizView({ type }: QuizViewProps) {
             )}
 
             {isCorrect === false && !showAnswer && (
-              <div className="text-center text-destructive font-semibold animate-in fade-in duration-200">
-                {lang === 'fr' ? "Pas tout à fait. Réessayez !" : "Not quite right. Try again!"}
+              <div className="text-center space-y-1 animate-in fade-in duration-200">
+                <p className="text-destructive font-bold text-lg">
+                  "{lastWrongInput}" {lang === 'fr' ? "n'est pas la bonne réponse." : "is not the right answer."}
+                </p>
+                <p className="text-muted-foreground text-sm">
+                  {lang === 'fr' ? "Réessayez !" : "Try again!"}
+                </p>
               </div>
             )}
           </form>
