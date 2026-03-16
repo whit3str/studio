@@ -1,22 +1,44 @@
+"use client";
+
+import React, { useState } from 'react';
 import { Navigation } from '@/components/Navigation';
 import { POKEMON_151, getPokemonImageUrl } from '@/lib/pokemon-data';
 import { Card, CardContent } from '@/components/ui/card';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import Image from 'next/image';
 
+type Language = 'en' | 'fr';
+
 export default function StudyPage() {
+  const [lang, setLang] = useState<Language>('en');
+
   return (
     <div className="min-h-screen pb-24 md:pt-24 px-4 bg-background">
       <Navigation />
       
       <main className="max-w-6xl mx-auto py-8">
-        <header className="mb-8 text-center">
-          <h1 className="text-3xl font-bold text-primary mb-2">Kanto Region Study</h1>
-          <p className="text-muted-foreground">Browse all 151 Pokémon and learn their numbers.</p>
+        <header className="mb-8 flex flex-col md:flex-row justify-between items-center gap-6">
+          <div className="text-center md:text-left">
+            <h1 className="text-3xl font-bold text-primary mb-2">
+              {lang === 'fr' ? "Étude de la Région Kanto" : "Kanto Region Study"}
+            </h1>
+            <p className="text-muted-foreground">
+              {lang === 'fr' ? "Parcourez les 151 Pokémon et apprenez leurs numéros." : "Browse all 151 Pokémon and learn their numbers."}
+            </p>
+          </div>
+
+          <Tabs value={lang} onValueChange={(val) => setLang(val as Language)} className="w-[200px]">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="en">English</TabsTrigger>
+              <TabsTrigger value="fr">Français</TabsTrigger>
+            </TabsList>
+          </Tabs>
         </header>
 
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-          {POKEMON_151.map((name, index) => {
-            const id = index + 1;
+          {POKEMON_151.map((pokemon) => {
+            const id = pokemon.id;
+            const name = pokemon.name[lang];
             return (
               <Card key={id} className="overflow-hidden group hover:scale-105 transition-transform duration-200">
                 <div className="bg-muted p-4 relative aspect-square flex items-center justify-center">

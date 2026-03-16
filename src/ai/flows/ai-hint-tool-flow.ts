@@ -20,6 +20,10 @@ const AiHintToolInputSchema = z.object({
     .min(1)
     .max(151)
     .describe("The National Pokédex number of the Pokémon (1-151)."),
+  language: z
+    .enum(['en', 'fr'])
+    .default('en')
+    .describe("The language in which the hint should be provided."),
 });
 export type AiHintToolInput = z.infer<typeof AiHintToolInputSchema>;
 
@@ -43,11 +47,11 @@ const aiHintToolPrompt = ai.definePrompt({
   input: {schema: AiHintToolInputSchema},
   output: {schema: AiHintToolOutputSchema},
   prompt:
-    "You are an expert Pokémon Professor. Your task is to provide a helpful, contextual hint about a specific Pokémon. " +
+    "You are an expert Pokémon Professor. Your task is to provide a helpful, contextual hint about a specific Pokémon in the requested language ({{{language}}}). " +
     "The hint should guide the user towards the answer without directly giving away the Pokémon's name or its National Pokédex number. " +
     "Focus on aspects like its primary type, common habitat, distinctive physical features, or a well-known ability. " +
     "The Pokémon in question is related to number {{{pokemonNumber}}} and its name is {{{pokemonName}}}. " +
-    "Provide only the hint, nothing else.",
+    "Provide only the hint in {{{language}}}, nothing else.",
 });
 
 const aiHintToolFlow = ai.defineFlow(
