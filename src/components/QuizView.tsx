@@ -9,7 +9,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Sparkles, HelpCircle, ArrowRight, RefreshCw, Trophy, Brain, ShieldAlert, ShieldCheck, Shield, Eye } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
+import { Sparkles, HelpCircle, ArrowRight, RefreshCw, Trophy, Brain, ShieldAlert, ShieldCheck, Shield, Eye, Clock, Timer } from 'lucide-react';
 import Image from 'next/image';
 import { cn } from '@/lib/utils';
 import { useLanguage, type Language } from '@/context/LanguageContext';
@@ -33,30 +35,30 @@ export function QuizView({ type }: QuizViewProps) {
   const [hint, setHint] = useState<string | null>(null);
   const [isHintLoading, setIsHintLoading] = useState(false);
   const [quizFinished, setQuizFinished] = useState(false);
-  const [attempts, setAttempts] = useState(0);
   const [difficulty, setDifficulty] = useState<Difficulty>('medium');
   const [showAnswer, setShowAnswer] = useState(false);
   
+  // Timer states
+  const [useTimer, setUseTimer] = useState(false);
+  const [timeLeft, setTimeLeft] = useState(15);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+
   const containerRef = useRef<HTMLDivElement>(null);
 
   const handleHint = useCallback(async (idx: number, currentLang: Language) => {
     if (idx === -1) return;
-
     const pokemonId = idx + 1;
-    
     const localHint = getLocalHint(pokemonId, currentLang);
     if (localHint) {
       setHint(localHint);
       return;
     }
-
     const cacheKey = `pokedex-cache-${pokemonId}-${currentLang}`;
     const cachedHint = localStorage.getItem(cacheKey);
     if (cachedHint) {
       setHint(cachedHint);
       return;
     }
-
     setIsHintLoading(true);
     try {
       const response = await getAiHint({
@@ -92,15 +94,34 @@ export function QuizView({ type }: QuizViewProps) {
     setLastWrongInput('');
     setIsCorrect(null);
     setHint(null);
-    setAttempts(0);
     setShowAnswer(false);
-  }, [usedIndices]);
+    setTimeLeft(difficulty === 'easy' ? 20 : difficulty === 'medium' ? 15 : 10);
+  }, [usedIndices, difficulty]);
 
   useEffect(() => {
     if (currentIdx === -1) {
       generateNext();
     }
   }, [currentIdx, generateNext]);
+
+  // Timer logic
+  useEffect(() => {
+    if (useTimer && !quizFinished && !isCorrect && !showAnswer && currentIdx !== -1) {
+      timerRef.current = setInterval(() => {
+        setTimeLeft(prev => {
+          if (prev <= 1) {
+            clearInterval(timerRef.current!);
+            handleReveal();
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    }
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, [useTimer, quizFinished, isCorrect, showAnswer, currentIdx]);
 
   useEffect(() => {
     if (difficulty === 'medium' && currentIdx !== -1 && !hint && !quizFinished) {
@@ -125,19 +146,8 @@ export function QuizView({ type }: QuizViewProps) {
     }
   }, [userInput, lang, type, isCorrect, showAnswer]);
 
-  // Close suggestions when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
-        setSuggestions([]);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     if (isCorrect === true || quizFinished || showAnswer || !userInput.trim()) return;
 
     const answer = userInput.trim().toLowerCase();
@@ -149,11 +159,8 @@ export function QuizView({ type }: QuizViewProps) {
       correct = answer === pokemonNumber;
     } else {
       const normalizedOfficial = pokemon.name[lang].toLowerCase().replace(/[♀♂]/g, '').trim();
-      
-      if (pokemon.id === 29) { // Nidoran F
-        correct = answer === normalizedOfficial || answer === "nidoran f" || answer === "nidoran femelle" || answer === "nidoran female" || answer === "nidoran♀";
-      } else if (pokemon.id === 32) { // Nidoran M
-        correct = answer === normalizedOfficial || answer === "nidoran m" || answer === "nidoran male" || answer === "nidoran♂";
+      if (pokemon.id === 29 || pokemon.id === 32) {
+        correct = answer === normalizedOfficial || answer.includes("nidoran");
       } else {
         correct = answer === pokemon.name[lang].toLowerCase();
       }
@@ -163,10 +170,10 @@ export function QuizView({ type }: QuizViewProps) {
       setIsCorrect(true);
       setScore(prev => ({ ...prev, correct: prev.correct + 1, total: prev.total + 1 }));
       setSuggestions([]);
+      if (timerRef.current) clearInterval(timerRef.current);
     } else {
       setLastWrongInput(userInput.trim());
       setIsCorrect(false);
-      setAttempts(prev => prev + 1);
     }
   };
 
@@ -182,6 +189,7 @@ export function QuizView({ type }: QuizViewProps) {
     setShowAnswer(true);
     setIsCorrect(false);
     setScore(prev => ({ ...prev, total: prev.total + 1 }));
+    if (timerRef.current) clearInterval(timerRef.current);
   };
 
   const resetQuiz = () => {
@@ -196,30 +204,29 @@ export function QuizView({ type }: QuizViewProps) {
   if (quizFinished) {
     const percentage = Math.round((score.correct / 10) * 100);
     return (
-      <Card className="max-w-xl mx-auto overflow-hidden shadow-2xl">
+      <Card className="max-w-xl mx-auto overflow-hidden shadow-2xl border-4 border-primary">
         <CardHeader className="text-center bg-primary text-primary-foreground py-10">
           <div className="flex justify-center mb-4">
-            <Trophy className="w-16 h-16" />
+            <Trophy className="w-16 h-16 animate-bounce" />
           </div>
-          <CardTitle className="text-3xl">{lang === 'fr' ? "Quiz Terminé !" : "Quiz Complete!"}</CardTitle>
+          <CardTitle className="text-3xl">{lang === 'fr' ? "Session Terminée !" : "Session Complete!"}</CardTitle>
           <CardDescription className="text-primary-foreground/80 text-lg">
-            {lang === 'fr' ? "Vous avez terminé votre session de 10 Pokémon." : "You've completed your 10-Pokémon session."}
+            {lang === 'fr' ? "Bravo pour votre entraînement." : "Great job on your training."}
           </CardDescription>
         </CardHeader>
         <CardContent className="p-8 space-y-6">
           <div className="grid grid-cols-2 gap-4 text-center">
-            <div className="p-4 bg-muted rounded-xl">
-              <p className="text-sm text-muted-foreground uppercase tracking-wider font-semibold">{lang === 'fr' ? "Correct" : "Correct"}</p>
-              <p className="text-4xl font-bold text-primary">{score.correct}</p>
+            <div className="p-4 bg-muted rounded-xl border-2">
+              <p className="text-sm text-muted-foreground uppercase tracking-wider font-bold">{lang === 'fr' ? "Correct" : "Correct"}</p>
+              <p className="text-4xl font-black text-primary">{score.correct}</p>
             </div>
-            <div className="p-4 bg-muted rounded-xl">
-              <p className="text-sm text-muted-foreground uppercase tracking-wider font-semibold">{lang === 'fr' ? "Précision" : "Accuracy"}</p>
-              <p className="text-4xl font-bold text-accent">{percentage}%</p>
+            <div className="p-4 bg-muted rounded-xl border-2">
+              <p className="text-sm text-muted-foreground uppercase tracking-wider font-bold">{lang === 'fr' ? "Précision" : "Accuracy"}</p>
+              <p className="text-4xl font-black text-accent">{percentage}%</p>
             </div>
           </div>
-          
-          <Button onClick={resetQuiz} size="lg" className="w-full gap-2 text-lg">
-            <RefreshCw className="w-5 h-5" /> {lang === 'fr' ? "Rejouer" : "Play Again"}
+          <Button onClick={resetQuiz} size="lg" className="w-full gap-2 text-lg font-bold h-14">
+            <RefreshCw className="w-5 h-5" /> {lang === 'fr' ? "Nouvelle Session" : "New Session"}
           </Button>
         </CardContent>
       </Card>
@@ -234,7 +241,7 @@ export function QuizView({ type }: QuizViewProps) {
       <div className="space-y-4">
         <div className="flex justify-between items-center gap-4">
           <div className="flex-1 space-y-2">
-            <div className="flex justify-between text-sm font-medium mb-1">
+            <div className="flex justify-between text-sm font-bold mb-1">
               <span>{lang === 'fr' ? "Progression" : "Progress"}</span>
               <span>{score.total + 1} / 10</span>
             </div>
@@ -242,45 +249,56 @@ export function QuizView({ type }: QuizViewProps) {
           </div>
         </div>
 
-        <Tabs value={difficulty} onValueChange={(val) => setDifficulty(val as Difficulty)} className="w-full">
-          <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="easy" className="gap-2">
-              <ShieldCheck className="w-4 h-4 text-green-500" />
-              <span className="hidden sm:inline">{lang === 'fr' ? "Facile" : "Easy"}</span>
-            </TabsTrigger>
-            <TabsTrigger value="medium" className="gap-2">
-              <Shield className="w-4 h-4 text-blue-500" />
-              <span className="hidden sm:inline">{lang === 'fr' ? "Moyen" : "Medium"}</span>
-            </TabsTrigger>
-            <TabsTrigger value="hard" className="gap-2">
-              <ShieldAlert className="w-4 h-4 text-red-500" />
-              <span className="hidden sm:inline">{lang === 'fr' ? "Difficile" : "Hard"}</span>
-            </TabsTrigger>
-          </TabsList>
-        </Tabs>
+        <div className="flex flex-col sm:flex-row gap-4 justify-between items-center">
+          <Tabs value={difficulty} onValueChange={(val) => setDifficulty(val as Difficulty)} className="flex-1 w-full sm:w-auto">
+            <TabsList className="grid w-full grid-cols-3">
+              <TabsTrigger value="easy" className="gap-2">
+                <ShieldCheck className="w-4 h-4 text-green-500" />
+                <span className="hidden sm:inline">{lang === 'fr' ? "Dresseur" : "Trainer"}</span>
+              </TabsTrigger>
+              <TabsTrigger value="medium" className="gap-2">
+                <Shield className="w-4 h-4 text-blue-500" />
+                <span className="hidden sm:inline">{lang === 'fr' ? "Elite" : "Elite"}</span>
+              </TabsTrigger>
+              <TabsTrigger value="hard" className="gap-2">
+                <ShieldAlert className="w-4 h-4 text-red-500" />
+                <span className="hidden sm:inline">{lang === 'fr' ? "Maître" : "Master"}</span>
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+
+          <div className="flex items-center space-x-2 bg-muted/50 p-2 rounded-lg border">
+            <Timer className={cn("w-4 h-4", useTimer ? "text-primary" : "text-muted-foreground")} />
+            <Label htmlFor="timer-mode" className="text-xs font-bold whitespace-nowrap">{lang === 'fr' ? "Chrono" : "Timer"}</Label>
+            <Switch id="timer-mode" checked={useTimer} onCheckedChange={setUseTimer} />
+          </div>
+        </div>
       </div>
 
       <Card className={cn(
-        "overflow-hidden transition-all duration-300 border-2",
+        "overflow-hidden transition-all duration-300 border-4",
         isCorrect === true ? "border-green-500 shadow-green-100" : 
         (isCorrect === false && !showAnswer) ? "border-destructive shadow-destructive/10 animate-shake" : 
-        showAnswer ? "border-orange-400" : "border-transparent"
+        showAnswer ? "border-orange-400" : "border-border"
       )}>
-        <CardHeader className="text-center bg-muted/30 pb-2">
-          <CardTitle className="text-2xl mb-1">
+        <CardHeader className="text-center bg-muted/30 pb-2 relative">
+          {useTimer && !isCorrect && !showAnswer && (
+            <div className={cn(
+              "absolute top-4 right-4 flex items-center gap-1 font-mono font-bold px-3 py-1 rounded-full border-2",
+              timeLeft <= 5 ? "bg-red-100 text-red-600 border-red-500 animate-pulse" : "bg-white text-primary border-primary"
+            )}>
+              <Clock className="w-4 h-4" /> {timeLeft}s
+            </div>
+          )}
+          <CardTitle className="text-2xl mb-1 font-bold">
             {type === 'number' 
               ? (lang === 'fr' ? "Quel est ce numéro ?" : "What's the number?") 
               : (lang === 'fr' ? "Quel est ce Pokémon ?" : "Who's this Pokémon?")}
           </CardTitle>
           <div className="flex flex-col items-center">
-             <span className="text-4xl md:text-5xl font-mono font-black text-primary/80 tracking-tighter py-2">
+             <span className="text-5xl md:text-6xl font-mono font-black text-primary/80 tracking-tighter py-2">
                 #{currentPokemonNumber.toString().padStart(3, '0')}
              </span>
-             {type === 'name' && (
-               <CardDescription className="text-xs uppercase tracking-widest">
-                 {lang === 'fr' ? "Identification Kanto" : "Kanto Identification"}
-               </CardDescription>
-             )}
           </div>
         </CardHeader>
         
@@ -318,24 +336,21 @@ export function QuizView({ type }: QuizViewProps) {
               <div className="flex-1 relative">
                 <Input
                   type={type === 'number' ? 'number' : 'text'}
-                  placeholder={type === 'number' 
-                    ? (lang === 'fr' ? 'Ex: 25' : 'Ex: 25') 
-                    : (lang === 'fr' ? 'Nom du Pokémon' : 'Pokémon Name')}
+                  placeholder={type === 'number' ? 'Numéro...' : 'Nom...'}
                   value={userInput}
                   onChange={(e) => setUserInput(e.target.value)}
                   disabled={isCorrect === true || showAnswer}
-                  className="text-lg h-12 text-center"
+                  className="text-lg h-12 text-center font-bold"
                   autoFocus
                 />
                 
-                {/* Autocomplete suggestions */}
                 {suggestions.length > 0 && (
-                  <div className="absolute top-full left-0 right-0 z-50 mt-1 bg-white border border-border rounded-lg shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-100">
+                  <div className="absolute top-full left-0 right-0 z-50 mt-1 bg-white border-2 border-primary/20 rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-100">
                     {suggestions.map((s) => (
                       <button
                         key={s}
                         type="button"
-                        className="w-full text-left px-4 py-3 hover:bg-primary/10 transition-colors text-sm font-medium border-b last:border-0"
+                        className="w-full text-left px-4 py-3 hover:bg-primary/10 transition-colors text-sm font-bold border-b last:border-0"
                         onClick={() => {
                           setUserInput(s);
                           setSuggestions([]);
@@ -357,33 +372,35 @@ export function QuizView({ type }: QuizViewProps) {
 
             {isCorrect === true && (
               <div className="text-center space-y-4 animate-in slide-in-from-top-4 duration-300">
-                <p className="text-xl font-bold text-green-600 flex items-center justify-center gap-2">
-                  <Sparkles className="w-5 h-5" /> {lang === 'fr' ? "Correct ! C'est" : "Correct! That's"} {currentPokemon.name[lang]}!
-                </p>
-                <Button onClick={handleNext} variant="secondary" className="w-full gap-2 font-bold py-6">
-                  {lang === 'fr' ? "Pokémon Suivant" : "Next Pokémon"} <ArrowRight className="w-4 h-4" />
+                <div className="space-y-1">
+                  <p className="text-xl font-black text-green-600">
+                    {lang === 'fr' ? "Correct ! C'est" : "Correct! That's"} {currentPokemon.name[lang]}!
+                  </p>
+                </div>
+                <Button onClick={handleNext} variant="secondary" className="w-full gap-2 font-black py-7 text-lg shadow-lg">
+                  {lang === 'fr' ? "Pokémon Suivant" : "Next Pokémon"} <ArrowRight className="w-5 h-5" />
                 </Button>
               </div>
             )}
 
             {showAnswer && (
               <div className="text-center space-y-4 animate-in slide-in-from-top-4 duration-300">
-                <div className="p-3 bg-orange-50 border border-orange-200 rounded-lg">
-                   <p className="text-sm text-orange-600 font-medium mb-1">{lang === 'fr' ? "La réponse était :" : "The answer was:"}</p>
-                   <p className="text-2xl font-black text-orange-700">{type === 'number' ? currentPokemonNumber : currentPokemon.name[lang]}</p>
+                <div className="p-4 bg-orange-50 border-2 border-orange-200 rounded-xl">
+                   <p className="text-sm text-orange-600 font-bold mb-1">{lang === 'fr' ? "La réponse était :" : "The answer was:"}</p>
+                   <p className="text-3xl font-black text-orange-700">{type === 'number' ? currentPokemonNumber : currentPokemon.name[lang]}</p>
                 </div>
-                <Button onClick={handleNext} variant="outline" className="w-full gap-2 border-orange-300 text-orange-700 hover:bg-orange-50 py-6 font-bold">
-                  {lang === 'fr' ? "Continuer" : "Continue"} <ArrowRight className="w-4 h-4" />
+                <Button onClick={handleNext} variant="outline" className="w-full gap-2 border-2 border-orange-300 text-orange-700 hover:bg-orange-50 py-7 text-lg font-black shadow-md">
+                  {lang === 'fr' ? "Continuer" : "Continue"} <ArrowRight className="w-5 h-5" />
                 </Button>
               </div>
             )}
 
             {isCorrect === false && !showAnswer && (
               <div className="text-center space-y-1 animate-in fade-in duration-200">
-                <p className="text-destructive font-bold text-lg">
-                  "{lastWrongInput}" {lang === 'fr' ? "n'est pas la bonne réponse." : "is not the right answer."}
+                <p className="text-destructive font-black text-lg">
+                  "{lastWrongInput}" {lang === 'fr' ? "n'est pas la réponse." : "is not the answer."}
                 </p>
-                <p className="text-muted-foreground text-sm">
+                <p className="text-muted-foreground text-sm font-medium">
                   {lang === 'fr' ? "Réessayez !" : "Try again!"}
                 </p>
               </div>
@@ -395,7 +412,7 @@ export function QuizView({ type }: QuizViewProps) {
               <Button 
                 variant="ghost" 
                 size="sm" 
-                className="w-full gap-2 text-muted-foreground hover:text-primary"
+                className="w-full gap-2 text-muted-foreground hover:text-primary font-bold"
                 onClick={() => handleHint(currentIdx, lang)}
                 disabled={isHintLoading}
               >
@@ -409,29 +426,29 @@ export function QuizView({ type }: QuizViewProps) {
             )}
 
             {hint && !showAnswer && difficulty !== 'hard' && (
-              <div className="bg-primary/5 p-4 rounded-xl border border-primary/20 animate-in slide-in-from-bottom-2 duration-300">
-                <p className="text-xs uppercase tracking-widest text-primary font-bold mb-1 flex items-center gap-2">
-                  <Brain className="w-3 h-3" /> {lang === 'fr' ? "Indice du Professeur" : "Professor's Hint"}
+              <div className="bg-primary/5 p-4 rounded-xl border-2 border-primary/10 animate-in slide-in-from-bottom-2 duration-300">
+                <p className="text-xs uppercase tracking-widest text-primary font-black mb-1 flex items-center gap-2">
+                  <Brain className="w-4 h-4" /> {lang === 'fr' ? "Indice du Professeur" : "Professor's Hint"}
                 </p>
-                <p className="text-sm italic text-foreground leading-relaxed">{hint}</p>
+                <p className="text-sm italic text-foreground leading-relaxed font-medium">{hint}</p>
               </div>
             )}
 
             {!isCorrect && !showAnswer && (
               <Button 
                 variant="link" 
-                className="w-full text-xs text-muted-foreground gap-1"
+                className="w-full text-xs text-muted-foreground gap-1 font-bold"
                 onClick={handleReveal}
               >
                 <Eye className="w-3 h-3" />
-                {lang === 'fr' ? "Révéler la réponse" : "Reveal answer"}
+                {lang === 'fr' ? "Donner ma langue au chat" : "Reveal answer"}
               </Button>
             )}
           </div>
         </CardContent>
       </Card>
 
-      <div className="flex justify-center gap-8 text-sm font-medium text-muted-foreground">
+      <div className="flex justify-center gap-8 text-sm font-bold text-muted-foreground bg-white/50 py-2 rounded-full border">
         <div className="flex items-center gap-2">
           <div className="w-3 h-3 bg-green-500 rounded-full" />
           {lang === 'fr' ? "Réussis :" : "Success:"} {score.correct}
