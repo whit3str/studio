@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
-import { Sparkles, HelpCircle, ArrowRight, RefreshCw, Trophy, AlertCircle } from 'lucide-react';
+import { Sparkles, HelpCircle, ArrowRight, RefreshCw, Trophy, AlertCircle, Brain } from 'lucide-react';
 import Image from 'next/image';
 import { cn } from '@/lib/utils';
 
@@ -153,9 +153,9 @@ export function QuizView({ type }: QuizViewProps) {
           <CardTitle className="text-2xl">
             {type === 'number' ? "Identify the Number" : "Recall the Name"}
           </CardTitle>
-          <CardDescription>
+          <CardTitle className="text-sm font-normal text-muted-foreground mt-1">
             {type === 'number' ? "Which Pokédex number is this?" : `What is the name of Pokémon #${currentPokemonNumber.toString().padStart(3, '0')}?`}
-          </CardDescription>
+          </CardTitle>
         </CardHeader>
         
         <CardContent className="p-8 flex flex-col items-center gap-6">
