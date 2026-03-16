@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Sparkles, HelpCircle, ArrowRight, RefreshCw, Trophy, Brain, ShieldAlert, ShieldCheck, Shield } from 'lucide-react';
+import { Sparkles, HelpCircle, ArrowRight, RefreshCw, Trophy, Brain, ShieldAlert, ShieldCheck, Shield, Eye } from 'lucide-react';
 import Image from 'next/image';
 import { cn } from '@/lib/utils';
 import { useLanguage, type Language } from '@/context/LanguageContext';
@@ -32,6 +32,7 @@ export function QuizView({ type }: QuizViewProps) {
   const [quizFinished, setQuizFinished] = useState(false);
   const [attempts, setAttempts] = useState(0);
   const [difficulty, setDifficulty] = useState<Difficulty>('medium');
+  const [showAnswer, setShowAnswer] = useState(false);
 
   const handleHint = useCallback(async (idx: number, currentLang: Language) => {
     if (idx === -1) return;
@@ -77,6 +78,7 @@ export function QuizView({ type }: QuizViewProps) {
     setIsCorrect(null);
     setHint(null);
     setAttempts(0);
+    setShowAnswer(false);
   }, []);
 
   useEffect(() => {
@@ -92,7 +94,7 @@ export function QuizView({ type }: QuizViewProps) {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (isCorrect === true || quizFinished) return;
+    if (isCorrect === true || quizFinished || showAnswer) return;
 
     const answer = userInput.trim().toLowerCase();
     const pokemon = POKEMON_151[currentIdx];
@@ -102,7 +104,16 @@ export function QuizView({ type }: QuizViewProps) {
     if (type === 'number') {
       correct = answer === pokemonNumber;
     } else {
-      correct = answer === pokemon.name[lang].toLowerCase();
+      const normalizedOfficial = pokemon.name[lang].toLowerCase().replace(/[♀♂]/g, '').trim();
+      
+      // Gestion spéciale pour les Nidoran pour faciliter la saisie sans symboles
+      if (pokemon.id === 29) { // Nidoran F
+        correct = answer === normalizedOfficial || answer === "nidoran f" || answer === "nidoran femelle" || answer === "nidoran female";
+      } else if (pokemon.id === 32) { // Nidoran M
+        correct = answer === normalizedOfficial || answer === "nidoran m" || answer === "nidoran male";
+      } else {
+        correct = answer === pokemon.name[lang].toLowerCase();
+      }
     }
 
     if (correct) {
@@ -122,6 +133,12 @@ export function QuizView({ type }: QuizViewProps) {
     }
   };
 
+  const handleReveal = () => {
+    setShowAnswer(true);
+    setIsCorrect(false);
+    setScore(prev => ({ ...prev, total: prev.total + 1 }));
+  };
+
   const resetQuiz = () => {
     setScore({ correct: 0, total: 0 });
     setQuizFinished(false);
@@ -131,7 +148,7 @@ export function QuizView({ type }: QuizViewProps) {
   if (currentIdx === -1) return null;
 
   if (quizFinished) {
-    const percentage = Math.round((score.correct / (score.total + 1)) * 100);
+    const percentage = Math.round((score.correct / (score.total)) * 100);
     return (
       <Card className="max-w-xl mx-auto overflow-hidden shadow-2xl">
         <CardHeader className="text-center bg-primary text-primary-foreground py-10">
@@ -200,22 +217,30 @@ export function QuizView({ type }: QuizViewProps) {
       <Card className={cn(
         "overflow-hidden transition-all duration-300 border-2",
         isCorrect === true ? "border-green-500 shadow-green-100" : 
-        isCorrect === false ? "border-destructive shadow-destructive/10 animate-shake" : "border-transparent"
+        (isCorrect === false && !showAnswer) ? "border-destructive shadow-destructive/10 animate-shake" : 
+        showAnswer ? "border-orange-400" : "border-transparent"
       )}>
-        <CardHeader className="text-center bg-muted/30">
-          <CardTitle className="text-2xl">
+        <CardHeader className="text-center bg-muted/30 pb-2">
+          <CardTitle className="text-2xl mb-1">
             {type === 'number' 
               ? (lang === 'fr' ? "Quel est ce numéro ?" : "What's the number?") 
               : (lang === 'fr' ? "Quel est ce Pokémon ?" : "Who's this Pokémon?")}
           </CardTitle>
-          <CardDescription>
-            {type === 'name' && `Pokémon #${currentPokemonNumber.toString().padStart(3, '0')}`}
-          </CardDescription>
+          <div className="flex flex-col items-center">
+             <span className="text-3xl font-mono font-bold text-primary/80 tracking-tighter">
+                #{currentPokemonNumber.toString().padStart(3, '0')}
+             </span>
+             {type === 'name' && (
+               <CardDescription className="text-xs uppercase tracking-widest mt-1">
+                 {lang === 'fr' ? "Identification Kanto" : "Kanto Identification"}
+               </CardDescription>
+             )}
+          </div>
         </CardHeader>
         
         <CardContent className="p-8 flex flex-col items-center gap-6">
           <div className="relative w-48 h-48 bg-muted rounded-full flex items-center justify-center border-4 border-white shadow-inner group overflow-hidden">
-            {(type === 'number' || difficulty === 'easy' || isCorrect === true) ? (
+            {(type === 'number' || difficulty === 'easy' || isCorrect === true || showAnswer) ? (
               <div className="relative w-full h-full flex items-center justify-center">
                 <Image 
                   src={getPokemonImageUrl(currentPokemonNumber, true)}
@@ -224,7 +249,7 @@ export function QuizView({ type }: QuizViewProps) {
                   height={160}
                   className={cn(
                     "drop-shadow-xl transition-all duration-500",
-                    (difficulty === 'easy' && isCorrect !== true && type === 'name') ? "brightness-0" : "brightness-100"
+                    (difficulty === 'easy' && isCorrect !== true && !showAnswer && type === 'name') ? "brightness-0" : "brightness-100"
                   )}
                   priority
                 />
@@ -251,11 +276,11 @@ export function QuizView({ type }: QuizViewProps) {
                   : (lang === 'fr' ? 'Nom du Pokémon' : 'Pokémon Name')}
                 value={userInput}
                 onChange={(e) => setUserInput(e.target.value)}
-                disabled={isCorrect === true}
+                disabled={isCorrect === true || showAnswer}
                 className="text-lg h-12 text-center"
                 autoFocus
               />
-              {isCorrect !== true && (
+              {!isCorrect && !showAnswer && (
                 <Button type="submit" size="lg" className="px-6 font-bold">
                   OK
                 </Button>
@@ -267,13 +292,25 @@ export function QuizView({ type }: QuizViewProps) {
                 <p className="text-xl font-bold text-green-600 flex items-center justify-center gap-2">
                   <Sparkles className="w-5 h-5" /> {lang === 'fr' ? "Correct ! C'est" : "Correct! That's"} {currentPokemon.name[lang]}!
                 </p>
-                <Button onClick={handleNext} variant="secondary" className="w-full gap-2">
+                <Button onClick={handleNext} variant="secondary" className="w-full gap-2 font-bold py-6">
                   {lang === 'fr' ? "Pokémon Suivant" : "Next Pokémon"} <ArrowRight className="w-4 h-4" />
                 </Button>
               </div>
             )}
 
-            {isCorrect === false && (
+            {showAnswer && (
+              <div className="text-center space-y-4 animate-in slide-in-from-top-4 duration-300">
+                <div className="p-3 bg-orange-50 border border-orange-200 rounded-lg">
+                   <p className="text-sm text-orange-600 font-medium mb-1">{lang === 'fr' ? "La réponse était :" : "The answer was:"}</p>
+                   <p className="text-2xl font-black text-orange-700">{type === 'number' ? currentPokemonNumber : currentPokemon.name[lang]}</p>
+                </div>
+                <Button onClick={handleNext} variant="outline" className="w-full gap-2 border-orange-300 text-orange-700 hover:bg-orange-50 py-6 font-bold">
+                  {lang === 'fr' ? "Continuer" : "Continue"} <ArrowRight className="w-4 h-4" />
+                </Button>
+              </div>
+            )}
+
+            {isCorrect === false && !showAnswer && (
               <div className="text-center text-destructive font-semibold animate-in fade-in duration-200">
                 {lang === 'fr' ? "Pas tout à fait. Réessayez !" : "Not quite right. Try again!"}
               </div>
@@ -281,7 +318,7 @@ export function QuizView({ type }: QuizViewProps) {
           </form>
 
           <div className="w-full pt-4 border-t space-y-4">
-            {!hint && isCorrect !== true && difficulty !== 'hard' && (
+            {!hint && !isCorrect && !showAnswer && difficulty !== 'hard' && (
               <Button 
                 variant="ghost" 
                 size="sm" 
@@ -298,7 +335,7 @@ export function QuizView({ type }: QuizViewProps) {
               </Button>
             )}
 
-            {hint && difficulty !== 'hard' && (
+            {hint && !showAnswer && difficulty !== 'hard' && (
               <div className="bg-primary/5 p-4 rounded-xl border border-primary/20 animate-in slide-in-from-bottom-2 duration-300">
                 <p className="text-xs uppercase tracking-widest text-primary font-bold mb-1 flex items-center gap-2">
                   <Brain className="w-3 h-3" /> {lang === 'fr' ? "Indice du Professeur" : "Professor's Hint"}
@@ -307,16 +344,14 @@ export function QuizView({ type }: QuizViewProps) {
               </div>
             )}
 
-            {attempts >= 3 && isCorrect !== true && (
+            {!isCorrect && !showAnswer && (
               <Button 
                 variant="link" 
-                className="w-full text-xs text-muted-foreground"
-                onClick={() => {
-                  setScore(prev => ({ ...prev, total: prev.total + 1 }));
-                  handleNext();
-                }}
+                className="w-full text-xs text-muted-foreground gap-1"
+                onClick={handleReveal}
               >
-                {lang === 'fr' ? "Passer ce Pokémon" : "Skip this Pokémon"}
+                <Eye className="w-3 h-3" />
+                {lang === 'fr' ? "Révéler la réponse" : "Reveal answer"}
               </Button>
             )}
           </div>
@@ -326,7 +361,7 @@ export function QuizView({ type }: QuizViewProps) {
       <div className="flex justify-center gap-8 text-sm font-medium text-muted-foreground">
         <div className="flex items-center gap-2">
           <div className="w-3 h-3 bg-green-500 rounded-full" />
-          {lang === 'fr' ? "Correct :" : "Correct:"} {score.correct}
+          {lang === 'fr' ? "Réussis :" : "Success:"} {score.correct}
         </div>
         <div className="flex items-center gap-2">
           <div className="w-3 h-3 bg-primary rounded-full" />
