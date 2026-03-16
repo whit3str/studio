@@ -1,16 +1,14 @@
 "use client";
 
-import React, { useState } from 'react';
+import React from 'react';
 import { Navigation } from '@/components/Navigation';
 import { POKEMON_151, getPokemonImageUrl } from '@/lib/pokemon-data';
 import { Card, CardContent } from '@/components/ui/card';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import Image from 'next/image';
-
-type Language = 'en' | 'fr';
+import { useLanguage } from '@/context/LanguageContext';
 
 export default function StudyPage() {
-  const [lang, setLang] = useState<Language>('en');
+  const { lang } = useLanguage();
 
   return (
     <div className="min-h-screen pb-24 md:pt-24 px-4 bg-background">
@@ -26,13 +24,6 @@ export default function StudyPage() {
               {lang === 'fr' ? "Parcourez les 151 Pokémon et apprenez leurs numéros." : "Browse all 151 Pokémon and learn their numbers."}
             </p>
           </div>
-
-          <Tabs value={lang} onValueChange={(val) => setLang(val as Language)} className="w-[200px]">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="en">English</TabsTrigger>
-              <TabsTrigger value="fr">Français</TabsTrigger>
-            </TabsList>
-          </Tabs>
         </header>
 
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">

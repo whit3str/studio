@@ -11,9 +11,9 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Sparkles, HelpCircle, ArrowRight, RefreshCw, Trophy, Brain, ShieldAlert, ShieldCheck, Shield } from 'lucide-react';
 import Image from 'next/image';
 import { cn } from '@/lib/utils';
+import { useLanguage, type Language } from '@/context/LanguageContext';
 
 type QuizType = 'number' | 'name';
-type Language = 'en' | 'fr';
 type Difficulty = 'easy' | 'medium' | 'hard';
 
 interface QuizViewProps {
@@ -21,6 +21,7 @@ interface QuizViewProps {
 }
 
 export function QuizView({ type }: QuizViewProps) {
+  const { lang } = useLanguage();
   const [currentIdx, setCurrentIdx] = useState<number>(-1);
   const [userInput, setUserInput] = useState('');
   const [isCorrect, setIsCorrect] = useState<boolean | null>(null);
@@ -29,7 +30,6 @@ export function QuizView({ type }: QuizViewProps) {
   const [isHintLoading, setIsHintLoading] = useState(false);
   const [quizFinished, setQuizFinished] = useState(false);
   const [attempts, setAttempts] = useState(0);
-  const [lang, setLang] = useState<Language>('en');
   const [difficulty, setDifficulty] = useState<Difficulty>('medium');
 
   const handleHint = useCallback(async (idx: number, currentLang: Language) => {
@@ -94,7 +94,7 @@ export function QuizView({ type }: QuizViewProps) {
   };
 
   const handleNext = () => {
-    if (score.total >= 10) {
+    if (score.total >= 9) {
       setQuizFinished(true);
     } else {
       generateNext();
@@ -110,7 +110,7 @@ export function QuizView({ type }: QuizViewProps) {
   if (currentIdx === -1) return null;
 
   if (quizFinished) {
-    const percentage = Math.round((score.correct / score.total) * 100);
+    const percentage = Math.round((score.correct / (score.total + 1)) * 100);
     return (
       <Card className="max-w-xl mx-auto overflow-hidden shadow-2xl">
         <CardHeader className="text-center bg-primary text-primary-foreground py-10">
@@ -154,15 +154,8 @@ export function QuizView({ type }: QuizViewProps) {
               <span>{lang === 'fr' ? "Progression" : "Progress"}</span>
               <span>{score.total + 1} / 10</span>
             </div>
-            <Progress value={(score.total / 10) * 100} className="h-3" />
+            <Progress value={((score.total + 1) / 10) * 100} className="h-3" />
           </div>
-          
-          <Tabs value={lang} onValueChange={(val) => setLang(val as Language)} className="w-[100px]">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="en">EN</TabsTrigger>
-              <TabsTrigger value="fr">FR</TabsTrigger>
-            </TabsList>
-          </Tabs>
         </div>
 
         <Tabs value={difficulty} onValueChange={(val) => setDifficulty(val as Difficulty)} className="w-full">
@@ -267,7 +260,6 @@ export function QuizView({ type }: QuizViewProps) {
           </form>
 
           <div className="w-full pt-4 border-t space-y-4">
-            {/* Indice Button: Seul en Facile et Moyen */}
             {!hint && isCorrect !== true && difficulty !== 'hard' && (
               <Button 
                 variant="ghost" 
@@ -285,7 +277,6 @@ export function QuizView({ type }: QuizViewProps) {
               </Button>
             )}
 
-            {/* Indice Display: Masqué en Difficile */}
             {hint && difficulty !== 'hard' && (
               <div className="bg-primary/5 p-4 rounded-xl border border-primary/20 animate-in slide-in-from-bottom-2 duration-300">
                 <p className="text-xs uppercase tracking-widest text-primary font-bold mb-1 flex items-center gap-2">
