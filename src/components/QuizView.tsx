@@ -81,7 +81,6 @@ export function QuizView({ type }: QuizViewProps) {
     if (type === 'number') {
       correct = answer === pokemonNumber;
     } else {
-      // Allow some flexibility with accents/special chars if needed, but basic lowerCase is fine for now
       correct = answer === pokemon.name[lang].toLowerCase();
     }
 
@@ -202,7 +201,6 @@ export function QuizView({ type }: QuizViewProps) {
         
         <CardContent className="p-8 flex flex-col items-center gap-6">
           <div className="relative w-48 h-48 bg-muted rounded-full flex items-center justify-center border-4 border-white shadow-inner group overflow-hidden">
-            {/* Show image if type is number (it's the question) OR if difficulty is easy OR if correctly answered */}
             {(type === 'number' || difficulty === 'easy' || isCorrect === true) ? (
               <div className="relative w-full h-full flex items-center justify-center">
                 <Image 
@@ -269,6 +267,7 @@ export function QuizView({ type }: QuizViewProps) {
           </form>
 
           <div className="w-full pt-4 border-t space-y-4">
+            {/* Indice Button: Seul en Facile et Moyen */}
             {!hint && isCorrect !== true && difficulty !== 'hard' && (
               <Button 
                 variant="ghost" 
@@ -286,7 +285,8 @@ export function QuizView({ type }: QuizViewProps) {
               </Button>
             )}
 
-            {hint && (
+            {/* Indice Display: Masqué en Difficile */}
+            {hint && difficulty !== 'hard' && (
               <div className="bg-primary/5 p-4 rounded-xl border border-primary/20 animate-in slide-in-from-bottom-2 duration-300">
                 <p className="text-xs uppercase tracking-widest text-primary font-bold mb-1 flex items-center gap-2">
                   <Brain className="w-3 h-3" /> {lang === 'fr' ? "Indice du Professeur" : "Professor's Hint"}
