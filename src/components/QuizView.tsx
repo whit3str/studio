@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Sparkles, HelpCircle, ArrowRight, RefreshCw, Trophy, Brain, Languages } from 'lucide-react';
+import { Sparkles, HelpCircle, ArrowRight, RefreshCw, Trophy, Brain } from 'lucide-react';
 import Image from 'next/image';
 import { cn } from '@/lib/utils';
 
@@ -55,8 +55,6 @@ export function QuizView({ type }: QuizViewProps) {
     if (type === 'number') {
       correct = answer === pokemonNumber;
     } else {
-      // Allow matching both languages or the currently selected one? 
-      // Usually users want to test the selected language.
       correct = answer === pokemon.name[lang].toLowerCase();
     }
 
@@ -178,7 +176,7 @@ export function QuizView({ type }: QuizViewProps) {
         </CardHeader>
         
         <CardContent className="p-8 flex flex-col items-center gap-6">
-          <div className="relative w-48 h-48 bg-muted rounded-full flex items-center justify-center border-4 border-white shadow-inner group">
+          <div className="relative w-48 h-48 bg-muted rounded-full flex items-center justify-center border-4 border-white shadow-inner group overflow-hidden">
             {type === 'number' ? (
               <Image 
                 src={getPokemonImageUrl(currentPokemonNumber, true)}
@@ -189,14 +187,27 @@ export function QuizView({ type }: QuizViewProps) {
                 priority
               />
             ) : (
-              <div className="text-6xl font-bold text-primary">
-                #{currentPokemonNumber}
+              <div className="flex items-center justify-center w-full h-full">
+                {isCorrect === true ? (
+                  <Image 
+                    src={getPokemonImageUrl(currentPokemonNumber, true)}
+                    alt={currentPokemon.name[lang]}
+                    width={160}
+                    height={160}
+                    className="drop-shadow-xl animate-in fade-in zoom-in duration-500"
+                    priority
+                  />
+                ) : (
+                  <div className="text-6xl font-bold text-primary animate-in fade-in duration-300">
+                    #{currentPokemonNumber.toString().padStart(3, '0')}
+                  </div>
+                )}
               </div>
             )}
             
             {isCorrect === true && (
-              <div className="absolute inset-0 flex items-center justify-center bg-white/40 backdrop-blur-[2px] rounded-full animate-in fade-in zoom-in duration-300">
-                <Sparkles className="w-24 h-24 text-green-500 animate-pulse" />
+              <div className="absolute inset-0 flex items-center justify-center bg-green-500/5 pointer-events-none rounded-full">
+                <Sparkles className="w-24 h-24 text-green-500/40 animate-pulse" />
               </div>
             )}
           </div>
