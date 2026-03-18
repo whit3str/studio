@@ -2,7 +2,7 @@ node_modules
 .next
 .git
 .github
+README.md
 Dockerfile
 docker-compose.yml
-.env
-README.md
+.dockerignore
