@@ -1,10 +1,8 @@
 services:
-  web:
-    build:
-      context: .
-      dockerfile: Dockerfile
+  pokequiz:
+    image: ghcr.io/whit3str/studio:latest
     ports:
-      - "3000:3000"
+      - "33333:3000"
     environment:
       - NODE_ENV=production
-    restart: always
+    restart: unless-stopped
