@@ -136,7 +136,7 @@ export const POKEMON_151: PokemonEntry[] = [
   { id: 126, name: { en: "Magmar", fr: "Magmar" }, types: ["fire"] },
   { id: 127, name: { en: "Pinsir", fr: "Scarabrute" }, types: ["bug"] },
   { id: 128, name: { en: "Tauros", fr: "Tauros" }, types: ["normal"] },
-  { id: 129, name: { en: "Magikarp", fr: "Magicrape" }, types: ["water"] },
+  { id: 129, name: { en: "Magikarp", fr: "Magicarpe" }, types: ["water"] },
   { id: 130, name: { en: "Gyarados", fr: "Léviator" }, types: ["water", "flying"] },
   { id: 131, name: { en: "Lapras", fr: "Lokhlass" }, types: ["water", "ice"] },
   { id: 132, name: { en: "Ditto", fr: "Métamorph" }, types: ["normal"] },
