@@ -59,7 +59,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          images: ${{ env.REGISTRY_IMAGE_PATH || (format('{0}/{1}', env.REGISTRY, env.IMAGE_NAME)) }}
           tags: |
             type=ref,event=branch
             type=sha,prefix=,suffix=,format=short
