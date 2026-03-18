@@ -5,8 +5,4 @@ services:
       - "33333:3000"
     environment:
       - NODE_ENV=production
-<<<<<<< HEAD
     restart: unless-stopped
-=======
-    restart: unless-stopped
->>>>>>> 73b95e6f65287e1f52c2fbc8de698439ee2725d1
