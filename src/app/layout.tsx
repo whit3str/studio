@@ -1,10 +1,26 @@
-import type {Metadata} from 'next';
+import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { LanguageProvider } from '@/context/LanguageContext';
+
+export const viewport: Viewport = {
+  themeColor: '#f97316',
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+};
 
 export const metadata: Metadata = {
   title: 'PokéLearn Quest',
   description: 'Master the first 151 Pokémon numbers and names!',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'default',
+    title: 'PokéLearn Quest',
+  },
+  formatDetection: {
+    telephone: false,
+  },
 };
 
 export default function RootLayout({
